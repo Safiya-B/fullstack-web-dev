@@ -10,7 +10,7 @@ const App = () => {
   const [persons, setPersons] = useState([]);
   const [search, setSearch] = useState("");
   const [errorMessage, setErrorMessage] = useState(null);
-  const [redMsg, setredMsg] = useState(true);
+  const [redMsg, setredMsg] = useState(true)
 
   useEffect(() => {
     console.log("calling useEffect");
