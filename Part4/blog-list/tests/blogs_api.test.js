@@ -43,7 +43,7 @@ test("new blog post is saved successfully", async () => {
   await api.post("/api/blogs").send(newPost).expect(201)
 
   const newBlogsObj = await helper.blogsInDb()
-  console.log(newBlogsObj)
+
   expect(newBlogsObj).toHaveLength(helper.blogs.length + 1)
 
   expect(newBlogsObj[newBlogsObj.length - 1]).toMatchObject(newPost)
