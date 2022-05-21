@@ -33,20 +33,54 @@ describe("blog posts tests", () => {
   })
 
   describe("Saving blog posts correctly", () => {
-    test("new blog post is saved successfully", async () => {
+    let jwt = ""
+    beforeEach(async () => {
+      await User.deleteMany({})
+      const passwordHash = await bcrypt.hash("azerty", 10)
+      const user = new User({
+        name: "test",
+        username: "test",
+        passwordHash: passwordHash,
+      })
+      await user.save()
+
+      const userCred = {
+        username: "test",
+        password: "azerty",
+      }
+      const payload = await api.post("/api/login").send(userCred).expect(200)
+
+      jwt = payload._body.token
+    })
+    test("logged in user adds a blog", async () => {
+      // add a new user
+
       const newPost = {
         title: "James Clear",
         author: "James Clear",
         url: "https://jamesclear.com/",
         likes: 5000000,
       }
-      await api.post("/api/blogs").send(newPost).expect(201)
+      await api
+        .post("/api/blogs")
+        .set("Authorization", `Bearer ${jwt}`)
+        .send(newPost)
+        .expect(201)
 
       const newBlogsObj = await helper.blogsInDb()
 
       expect(newBlogsObj).toHaveLength(helper.blogs.length + 1)
-
       expect(newBlogsObj[newBlogsObj.length - 1]).toMatchObject(newPost)
+    })
+
+    test("unauthorized user adds a blog", async () => {
+      const newPost = {
+        title: "James Clear",
+        author: "James Clear",
+        url: "https://jamesclear.com/",
+        likes: 5000000,
+      }
+      await api.post("/api/blogs").send(newPost).expect(401)
     })
 
     test("missing likes property", async () => {
@@ -55,7 +89,11 @@ describe("blog posts tests", () => {
         author: "James Clear",
         url: "https://jamesclear.com/",
       }
-      await api.post("/api/blogs").send(newPost).expect(201)
+      await api
+        .post("/api/blogs")
+        .set("Authorization", `Bearer ${jwt}`)
+        .send(newPost)
+        .expect(201)
 
       const newBlogsObj = await helper.blogsInDb()
       expect(newBlogsObj[newBlogsObj.length - 1].likes).toEqual(0)
@@ -66,23 +104,61 @@ describe("blog posts tests", () => {
         author: "James Clear",
         likes: "10000",
       }
-      await api.post("/api/blogs").send(newPost).expect(400)
+      await api
+        .post("/api/blogs")
+        .set("Authorization", `Bearer ${jwt}`)
+        .send(newPost)
+        .expect(400)
     })
   })
 
-  describe("removing blog posts", () => {
-    test("remove one post", async () => {
+  describe("removing and updating blog posts", () => {
+    let jwt = ""
+    beforeEach(async () => {
+      await User.deleteMany({})
+      const passwordHash = await bcrypt.hash("azerty", 10)
+      const user = new User({
+        name: "abc",
+        username: "abc",
+        passwordHash: passwordHash,
+      })
+      await user.save()
+
+      const userCred = {
+        username: "abc",
+        password: "azerty",
+      }
+      const payload = await api.post("/api/login").send(userCred).expect(200)
+
+      jwt = payload._body.token
+
+      const newPost = new Blog({
+        title: "James Clear",
+        author: "James Clear",
+        url: "https://jamesclear.com/",
+        user: user._id,
+      })
+
+      await newPost.save()
+    })
+
+    test("unauthorized user removes a post", async () => {
       const posts = await helper.blogsInDb()
-      const postId = posts[0].id
-      await api.delete(`/api/blogs/${postId}`).expect(204)
+      const postId = posts[posts.length - 1].id
+      await api.delete(`/api/blogs/${postId}`).expect(401)
+    })
+    test("authenticated user removes a post", async () => {
+      const posts = await helper.blogsInDb()
+      const postId = posts[posts.length - 1].id
+      await api
+        .delete(`/api/blogs/${postId}`)
+        .set("Authorization", `Bearer ${jwt}`)
+        .expect(204)
 
       const postsAfterDelete = await helper.blogsInDb()
-
-      expect(postsAfterDelete).toHaveLength(helper.blogs.length - 1)
+      expect(postsAfterDelete).toHaveLength(posts.length - 1)
     })
-  })
 
-  describe("updating blog post", () => {
     test("update one post", async () => {
       const posts = await helper.blogsInDb()
       const lastIndex = posts.length - 1
@@ -92,7 +168,6 @@ describe("blog posts tests", () => {
       }
       await api.put(`/api/blogs/${postId}`).send(updatedPost).expect(201)
       const postsAfterUpdate = await helper.blogsInDb()
-      console.log(postsAfterUpdate[lastIndex])
       expect(postsAfterUpdate[lastIndex].likes).toEqual(200)
     })
   })
@@ -105,7 +180,7 @@ describe("users tests", () => {
     const user = new User({
       name: "test",
       username: "testUser",
-      password: passwordHash,
+      passwordHash: passwordHash,
     })
     await user.save()
   })
@@ -151,6 +226,7 @@ describe("users tests", () => {
       const usersAtEnd = await helper.usersInDb()
       expect(usersAtEnd).toHaveLength(usersAtStart.length)
     })
+
     test("empty name", async () => {
       const usersAtStart = await helper.usersInDb()
       const newUser = {
